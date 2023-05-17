@@ -1,48 +1,74 @@
-// Student controller -route handler
 import readDatabase from '../utils';
 
+/**
+ * list of supported majors
+ */
+const VALID_MAJORS = ['CS', 'SWE'];
+
+/**
+ * Contains student related route handlers
+ *
+ */
 class StudentsController {
   static getAllStudents(request, response) {
-    const DB_FILE = process.argv.length > 2 ? process.argv[2] : '';
-    readDatabase(DB_FILE)
-      .then((report) => {
-        const data = [];
-        data.push('This is the list of our students');
-        for (const [field, list] of Object.entries(report)) {
-          if (field) {
-            const listOfFirstName = list.join(', ');
-            data.push(
-              `Number of students in ${field}: ${list.length}. List: ${listOfFirstName}`,
-            );
+    const dataPath = process.argv.length > 2 ? process.argv[2] : '';
+
+    readDatabase(dataPath)
+      .then((studentGroups) => {
+        const responseParts = ['This is the list of our students'];
+        // Comparison function for ordering list of strings in ascending
+        // order by alphabetic order and case insensitive
+        const cmpFxn = (a, b) => {
+          if (a[0].toLowerCase() < b[0].toLowerCase()) {
+            return -1;
           }
+          if (a[0].toLowerCase() > b[0].toLowerCase()) {
+            return 1;
+          }
+          return 0;
+        };
+
+        for (const [field, group] of Object.entries(studentGroups).sort(cmpFxn)) {
+          responseParts.push([
+            `Number of students in ${field}: ${group.length}.`,
+            'List:',
+            group.map((student) => student.firstname).join(', '),
+          ].join(' '));
         }
-        response.status = 200;
-        response.send(data.join('\n'));
+        response.status(200).send(responseParts.join('\n'));
       })
       .catch((err) => {
-        response.status = 500;
-        response.send(err.message);
+        response
+          .status(500)
+          .send(err instanceof Error ? err.message : err.toString());
       });
   }
 
   static getAllStudentsByMajor(request, response) {
+    const dataPath = process.argv.length > 2 ? process.argv[2] : '';
     const { major } = request.params;
-    if (major !== 'CS' && major !== 'SWE') {
-      response.status = 500;
-      response.send('Major parameter must be CS or SWE');
-    } else {
-      const DB_FILE = process.argv.length > 2 ? process.argv[2] : '';
-      readDatabase(DB_FILE)
-        .then((studentReport) => {
-          const listOfFirstName = `List: ${studentReport[major].join(', ')}`;
-          response.send(listOfFirstName);
-        })
-        .catch((err) => {
-          response.status = 500;
-          response.send(err.message);
-        });
+
+    if (!VALID_MAJORS.includes(major)) {
+      response.status(500).send('Major parameter must be CS or SWE');
+      return;
     }
+    readDatabase(dataPath)
+      .then((studentGroups) => {
+        let responseText = '';
+
+        if (Object.keys(studentGroups).includes(major)) {
+          const group = studentGroups[major];
+          responseText = `List: ${group.map((student) => student.firstname).join(', ')}`;
+        }
+        response.status(200).send(responseText);
+      })
+      .catch((err) => {
+        response
+          .status(500)
+          .send(err instanceof Error ? err.message : err.toString());
+      });
   }
 }
 
 export default StudentsController;
+module.exports = StudentsController;
